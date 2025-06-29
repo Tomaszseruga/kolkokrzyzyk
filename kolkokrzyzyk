@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gra w Kółko i Krzyżyk</title>
+    <!-- Ładowanie czcionki Inter z Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* Stylizacja globalna i dla body */
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(to right, #6dd5ed, #2193b0); /* Ładny gradient tła */
+            color: #fff;
+            overflow: hidden; /* Zapobieganie przewijaniu */
+        }
+
+        /* Kontener główny gry */
+        .game-container {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            backdrop-filter: blur(5px); /* Efekt rozmycia */
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        h1 {
+            margin-bottom: 25px;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            font-size: 2.5em;
+        }
+
+        /* Stylizacja statusu gry */
+        .game-status {
+            font-size: 1.5em;
+            margin-bottom: 25px;
+            font-weight: bold;
+            color: #ffeb3b; /* Jasny żółty dla statusu */
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Siatka planszy gry */
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px); /* 3 kolumny po 100px */
+            grid-template-rows: repeat(3, 100px); /* 3 rzędy po 100px */
+            gap: 10px; /* Odstęp między komórkami */
+            margin: 0 auto 30px auto;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 10px;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.2);
+            width: fit-content; /* Dopasowanie szerokości do zawartości */
+        }
+
+        /* Stylizacja pojedynczej komórki */
+        .cell {
+            width: 100px;
+            height: 100px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 3.5em; /* Większy rozmiar dla X/O */
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            color: #333; /* Ciemniejszy kolor dla X/O */
+            font-weight: bold;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .cell:hover {
+            background-color: rgba(255, 255, 255, 1);
+            transform: scale(1.05); /* Lekkie powiększenie przy najechaniu */
+        }
+
+        .cell.x {
+            color: #e74c3c; /* Czerwony dla X */
+        }
+
+        .cell.o {
+            color: #3498db; /* Niebieski dla O */
+        }
+
+        /* Stylizacja przycisku resetowania */
+        .reset-button {
+            background: linear-gradient(to right, #f39c12, #e67e22); /* Pomarańczowy gradient */
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 30px;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: background 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .reset-button:hover {
+            background: linear-gradient(to right, #e67e22, #f39c12);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .reset-button:active {
+            transform: translateY(0);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Responsywność dla mniejszych ekranów */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .game-status {
+                font-size: 1.2em;
+            }
+
+            .game-board {
+                grid-template-columns: repeat(3, 80px); /* Mniejsze komórki */
+                grid-template-rows: repeat(3, 80px);
+                gap: 8px;
+            }
+
+            .cell {
+                width: 80px;
+                height: 80px;
+                font-size: 2.8em;
+            }
+
+            .reset-button {
+                padding: 12px 25px;
+                font-size: 1em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>Kółko i Krzyżyk</h1>
+        <div class="game-status"></div>
+        <div class="game-board">
+            <!-- Komórki gry będą generowane dynamicznie przez JavaScript -->
+        </div>
+        <button class="reset-button">Zagraj ponownie</button>
+    </div>
+
+    <script>
+        // Pobieranie elementów DOM
+        const gameBoard = document.querySelector('.game-board');
+        const gameStatus = document.querySelector('.game-status');
+        const resetButton = document.querySelector('.reset-button');
+
+        // Zmienne stanu gry
+        let board = ['', '', '', '', '', '', '', '', '']; // Reprezentacja planszy
+        let currentPlayer = 'X'; // Aktualny gracz
+        let gameActive = true; // Czy gra jest aktywna
+
+        // Kombinacje wygrywające
+        const winningConditions = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rzędy
+            [0, 3, 6], [1, 4, 7], [2, 5, 8], // Kolumny
+            [0, 4, 8], [2, 4, 6]             // Przekątne
+        ];
+
+        /**
+         * Funkcja inicjująca planszę gry.
+         * Tworzy 9 komórek i dodaje je do planszy.
+         */
+        function initializeGame() {
+            gameBoard.innerHTML = ''; // Czyści istniejące komórki
+            board.forEach((cell, index) => {
+                const cellElement = document.createElement('div');
+                cellElement.classList.add('cell');
+                cellElement.dataset.index = index; // Ustawia indeks komórki
+                cellElement.addEventListener('click', handleCellClick);
+                gameBoard.appendChild(cellElement);
+            });
+            updateStatus(`Gracz ${currentPlayer} zaczyna!`);
+        }
+
+        /**
+         * Funkcja aktualizująca tekst statusu gry.
+         * @param {string} message - Wiadomość do wyświetlenia.
+         */
+        function updateStatus(message) {
+            gameStatus.textContent = message;
+        }
+
+        /**
+         * Obsługa kliknięcia komórki.
+         * @param {Event} event - Obiekt zdarzenia kliknięcia.
+         */
+        function handleCellClick(event) {
+            const clickedCell = event.target;
+            const clickedCellIndex = parseInt(clickedCell.dataset.index);
+
+            // Sprawdza, czy komórka jest już zajęta lub gra nieaktywna
+            if (board[clickedCellIndex] !== '' || !gameActive) {
+                return;
+            }
+
+            // Aktualizuje planszę i UI
+            board[clickedCellIndex] = currentPlayer;
+            clickedCell.textContent = currentPlayer;
+            clickedCell.classList.add(currentPlayer.toLowerCase()); // Dodaje klasę 'x' lub 'o' dla stylizacji
+
+            checkGameResult(); // Sprawdza, czy gra się zakończyła
+        }
+
+        /**
+         * Funkcja sprawdzająca wynik gry (wygrana, remis, kontynuacja).
+         */
+        function checkGameResult() {
+            let roundWon = false;
+            for (let i = 0; i < winningConditions.length; i++) {
+                const winCondition = winningConditions[i];
+                let a = board[winCondition[0]];
+                let b = board[winCondition[1]];
+                let c = board[winCondition[2]];
+
+                if (a === '' || b === '' || c === '') {
+                    continue; // Jeśli jedna z komórek jest pusta, sprawdź następną kombinację
+                }
+                if (a === b && b === c) {
+                    roundWon = true;
+                    break; // Znaleziono wygrywającą kombinację
+                }
+            }
+
+            if (roundWon) {
+                updateStatus(`Gracz ${currentPlayer} wygrał!`);
+                gameActive = false; // Zakończ grę
+                return;
+            }
+
+            // Sprawdź remis (czy wszystkie komórki są zajęte)
+            let roundDraw = !board.includes('');
+            if (roundDraw) {
+                updateStatus('Remis!');
+                gameActive = false; // Zakończ grę
+                return;
+            }
+
+            // Jeśli nie ma wygranej ani remisu, zmień gracza
+            changePlayer();
+        }
+
+        /**
+         * Funkcja zmieniająca aktualnego gracza.
+         */
+        function changePlayer() {
+            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            updateStatus(`Tura gracza ${currentPlayer}`);
+        }
+
+        /**
+         * Funkcja resetująca grę do początkowego stanu.
+         */
+        function resetGame() {
+            board = ['', '', '', '', '', '', '', '', '']; // Resetuj planszę
+            currentPlayer = 'X'; // Zaczyna gracz X
+            gameActive = true; // Aktywuj grę
+            initializeGame(); // Ponownie inicjuj UI planszy
+        }
+
+        // Dodawanie nasłuchiwania na przycisk resetowania
+        resetButton.addEventListener('click', resetGame);
+
+        // Inicjalizacja gry po załadowaniu skryptu
+        window.onload = initializeGame;
+    </script>
+</body>
+</html>
