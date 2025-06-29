@@ -306,6 +306,15 @@
          */
         async function initializeFirebase() {
             try {
+                // Sprawdzenie, czy konfiguracja Firebase zawiera projectId
+                if (!firebaseConfig.projectId) {
+                    console.error("Błąd konfiguracji Firebase: 'projectId' jest brakujący. Funkcje multiplayer nie będą działać.");
+                    showMessage('Błąd konfiguracji gry: Nie można załadować funkcji online (brak ID projektu). Skontaktuj się z pomocą techniczną.');
+                    createGameButton.disabled = true;
+                    joinGameButton.disabled = true;
+                    return; // Zatrzymaj inicjalizację, jeśli krytyczna konfiguracja brakuje
+                }
+
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
@@ -315,7 +324,6 @@
                     if (user) {
                         userId = user.uid;
                         playerIdDisplay.textContent = userId;
-                        // Usunięto komunikat "Zalogowano anonimowo."
                         initializeGameUI(); // Inicjalizuj UI gry po zalogowaniu
                     } else {
                         // Jeśli nie ma użytkownika, zaloguj anonimowo
@@ -327,8 +335,10 @@
                     }
                 });
             } catch (error) {
-                console.error("Błąd inicjalizacji Firebase lub autoryzacji:", error);
-                showMessage('Błąd ładowania gry: ' + error.message);
+                console.error("Poważny błąd inicjalizacji Firebase lub autoryzacji:", error);
+                showMessage('Poważny błąd ładowania gry: ' + error.message + '. Funkcje online są niedostępne.');
+                createGameButton.disabled = true;
+                joinGameButton.disabled = true;
             }
         }
 
@@ -734,3 +744,4 @@
     </script>
 </body>
 </html>
+
