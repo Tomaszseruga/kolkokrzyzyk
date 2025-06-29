@@ -260,7 +260,14 @@
 
         // Globalne zmienne dostarczane przez środowisko Canvas
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const firebaseConfig = {
+  apiKey: "AIzaSyDaFRAwnm66HzdId5wpKef8W42DSBn0nCE",
+  authDomain: "kolkokrzyzyk-cf27e.firebaseapp.com",
+  projectId: "kolkokrzyzyk-cf27e",
+  storageBucket: "kolkokrzyzyk-cf27e.firebasestorage.app",
+  messagingSenderId: "356851549948",
+  appId: "1:356851549948:web:9b172cdbaa2d4d6185f979"
+};
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // Inicjalizacja Firebase
