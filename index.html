@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gra w Kółko i Krzyżyk</title>
+    <title>Gra w Kółko i Krzyżyk (Multiplayer)</title>
     <!-- Ładowanie czcionki Inter z Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
     <style>
@@ -18,7 +18,7 @@
             margin: 0;
             background: linear-gradient(to right, #6dd5ed, #2193b0); /* Ładny gradient tła */
             color: #fff;
-            overflow: hidden; /* Zapobieganie przewijaniu */
+            overflow-x: hidden; /* Zapobieganie przewijaniu poziomemu */
         }
 
         /* Kontener główny gry */
@@ -30,6 +30,9 @@
             text-align: center;
             backdrop-filter: blur(5px); /* Efekt rozmycia */
             border: 1px solid rgba(255, 255, 255, 0.2);
+            max-width: 90%; /* Ograniczenie szerokości na małych ekranach */
+            width: 500px; /* Domyślna szerokość */
+            box-sizing: border-box; /* Uwzględnienie paddingu w szerokości */
         }
 
         h1 {
@@ -37,6 +40,74 @@
             color: #fff;
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
             font-size: 2.5em;
+        }
+
+        /* Sekcja identyfikacji gracza i gry */
+        .player-info, .game-lobby, .game-messages {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            text-align: left;
+        }
+
+        .player-info p, .game-lobby p, .game-messages p {
+            margin: 5px 0;
+            word-wrap: break-word; /* Łamanie długich tekstów */
+        }
+
+        .player-info strong, .game-lobby strong {
+            color: #ffeb3b;
+        }
+
+        .game-messages {
+            font-size: 1em;
+            color: #ffeb3b;
+        }
+
+        /* Stylizacja pól input i przycisków lobby */
+        .lobby-controls {
+            display: flex;
+            flex-wrap: wrap; /* Zawijanie elementów na mniejszych ekranach */
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .lobby-controls input[type="text"] {
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background-color: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            font-size: 1em;
+            flex-grow: 1; /* Pozwala inputowi rosnąć */
+            max-width: 200px; /* Ograniczenie maksymalnej szerokości */
+        }
+
+        .lobby-controls input[type="text"]::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .lobby-controls button {
+            background: linear-gradient(to right, #4CAF50, #8BC34A); /* Zielony gradient */
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+            font-weight: bold;
+            flex-shrink: 0; /* Zapobiega kurczeniu się przycisku */
+        }
+
+        .lobby-controls button:hover {
+            background: linear-gradient(to right, #8BC34A, #4CAF50);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
         }
 
         /* Stylizacja statusu gry */
@@ -145,29 +216,83 @@
                 padding: 12px 25px;
                 font-size: 1em;
             }
+
+            .lobby-controls input[type="text"] {
+                max-width: 100%;
+            }
         }
     </style>
 </head>
 <body>
     <div class="game-container">
-        <h1>Kółko i Krzyżyk</h1>
+        <h1>Kółko i Krzyżyk (Multiplayer)</h1>
+
+        <div class="player-info">
+            <p>Twój ID Gracza: <strong id="playerIdDisplay">...</strong></p>
+            <p>Jesteś: <strong id="yourMark">?</strong></p>
+        </div>
+
+        <div class="game-lobby">
+            <p>ID obecnej gry: <strong id="gameIdDisplay">Brak</strong></p>
+            <div class="lobby-controls">
+                <input type="text" id="joinGameIdInput" placeholder="Wpisz ID gry">
+                <button id="createGameButton">Stwórz nową grę</button>
+                <button id="joinGameButton">Dołącz do gry</button>
+            </div>
+        </div>
+
+        <div class="game-messages">
+            <p id="messageBox">Zacznij, tworząc lub dołączając do gry.</p>
+        </div>
+
         <div class="game-status"></div>
         <div class="game-board">
             <!-- Komórki gry będą generowane dynamicznie przez JavaScript -->
         </div>
-        <button class="reset-button">Zagraj ponownie</button>
+        <button class="reset-button" style="display: none;">Zagraj ponownie</button>
     </div>
 
-    <script>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        // Globalne zmienne dostarczane przez środowisko Canvas
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Inicjalizacja Firebase
+        let app;
+        let db;
+        let auth;
+        let userId = ''; // Będzie zaktualizowane po autoryzacji
+
+        // Zmienne stanu gry multiplayer
+        let currentGameId = null;
+        let playerMark = null; // 'X' or 'O' for the current player
+        let unsubscribeFromGame = null; // Do przechowywania funkcji anulującej subskrypcję Firestore
+
         // Pobieranie elementów DOM
         const gameBoard = document.querySelector('.game-board');
         const gameStatus = document.querySelector('.game-status');
         const resetButton = document.querySelector('.reset-button');
+        const playerIdDisplay = document.getElementById('playerIdDisplay');
+        const yourMarkDisplay = document.getElementById('yourMark');
+        const gameIdDisplay = document.getElementById('gameIdDisplay');
+        const joinGameIdInput = document.getElementById('joinGameIdInput');
+        const createGameButton = document.getElementById('createGameButton');
+        const joinGameButton = document.getElementById('joinGameButton');
+        const messageBox = document.getElementById('messageBox');
 
-        // Zmienne stanu gry
-        let board = ['', '', '', '', '', '', '', '', '']; // Reprezentacja planszy
-        let currentPlayer = 'X'; // Aktualny gracz
-        let gameActive = true; // Czy gra jest aktywna
+        // Zmienne stanu gry (lokalne, synchronizowane z Firestore)
+        let board = ['', '', '', '', '', '', '', '', ''];
+        let currentPlayer = 'X';
+        let gameActive = false;
+        let playerXId = null;
+        let playerOId = null;
+        let winner = null;
 
         // Kombinacje wygrywające
         const winningConditions = [
@@ -177,19 +302,50 @@
         ];
 
         /**
-         * Funkcja inicjująca planszę gry.
-         * Tworzy 9 komórek i dodaje je do planszy.
+         * Funkcja inicjująca Firebase i autoryzację.
          */
-        function initializeGame() {
+        async function initializeFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Obsługa zmian stanu autoryzacji
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        playerIdDisplay.textContent = userId;
+                        // Usunięto komunikat "Zalogowano anonimowo."
+                        initializeGameUI(); // Inicjalizuj UI gry po zalogowaniu
+                    } else {
+                        // Jeśli nie ma użytkownika, zaloguj anonimowo
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Błąd inicjalizacji Firebase lub autoryzacji:", error);
+                showMessage('Błąd ładowania gry: ' + error.message);
+            }
+        }
+
+        /**
+         * Funkcja inicjująca UI planszy gry.
+         */
+        function initializeGameUI() {
             gameBoard.innerHTML = ''; // Czyści istniejące komórki
-            board.forEach((cell, index) => {
+            for (let i = 0; i < 9; i++) {
                 const cellElement = document.createElement('div');
                 cellElement.classList.add('cell');
-                cellElement.dataset.index = index; // Ustawia indeks komórki
+                cellElement.dataset.index = i; // Ustawia indeks komórki
                 cellElement.addEventListener('click', handleCellClick);
                 gameBoard.appendChild(cellElement);
-            });
-            updateStatus(`Gracz ${currentPlayer} zaczyna!`);
+            }
+            // Ukryj przycisk resetowania na początku
+            resetButton.style.display = 'none';
         }
 
         /**
@@ -201,87 +357,380 @@
         }
 
         /**
-         * Obsługa kliknięcia komórki.
-         * @param {Event} event - Obiekt zdarzenia kliknięcia.
+         * Funkcja wyświetlająca wiadomości dla użytkownika.
+         * @param {string} message - Wiadomość do wyświetlenia.
          */
-        function handleCellClick(event) {
-            const clickedCell = event.target;
-            const clickedCellIndex = parseInt(clickedCell.dataset.index);
-
-            // Sprawdza, czy komórka jest już zajęta lub gra nieaktywna
-            if (board[clickedCellIndex] !== '' || !gameActive) {
-                return;
-            }
-
-            // Aktualizuje planszę i UI
-            board[clickedCellIndex] = currentPlayer;
-            clickedCell.textContent = currentPlayer;
-            clickedCell.classList.add(currentPlayer.toLowerCase()); // Dodaje klasę 'x' lub 'o' dla stylizacji
-
-            checkGameResult(); // Sprawdza, czy gra się zakończyła
+        function showMessage(message) {
+            messageBox.textContent = message;
         }
 
         /**
-         * Funkcja sprawdzająca wynik gry (wygrana, remis, kontynuacja).
+         * Tworzy nową grę w Firestore.
          */
-        function checkGameResult() {
+        async function createNewGame() {
+            if (!userId || !db) {
+                showMessage('Błąd: Nie można utworzyć gry. Sprawdź połączenie.');
+                return;
+            }
+
+            if (currentGameId) {
+                showMessage('Jesteś już w grze. Opuść ją, zanim stworzysz nową.');
+                return;
+            }
+
+            try {
+                const newGameRef = doc(collection(db, `artifacts/${appId}/public/data/games`));
+                const newGameId = newGameRef.id;
+
+                const initialGameState = {
+                    board: ['', '', '', '', '', '', '', '', ''],
+                    currentPlayer: 'X',
+                    gameActive: false, // Gra aktywna dopiero po dołączeniu drugiego gracza
+                    playerXId: userId,
+                    playerOId: null,
+                    winner: null,
+                    lastUpdated: Date.now()
+                };
+
+                await setDoc(newGameRef, initialGameState);
+                joinGame(newGameId); // Automatycznie dołącz do stworzonej gry
+                showMessage(`Stworzyłeś nową grę! ID gry: ${newGameId}. Udostępnij je drugiemu graczowi.`);
+            } catch (error) {
+                console.error("Błąd tworzenia gry:", error);
+                showMessage('Błąd tworzenia gry: ' + error.message);
+            }
+        }
+
+        /**
+         * Dołącza do istniejącej gry w Firestore.
+         * @param {string} gameId - ID gry do dołączenia.
+         */
+        async function joinGame(gameId) {
+            if (!userId || !db) {
+                showMessage('Błąd: Nie można dołączyć do gry. Sprawdź połączenie.');
+                return;
+            }
+
+            if (currentGameId) {
+                showMessage('Jesteś już w grze. Opuść ją, zanim dołączysz do innej.');
+                return;
+            }
+
+            if (!gameId) {
+                showMessage('Proszę podać ID gry.');
+                return;
+            }
+
+            const gameRef = doc(db, `artifacts/${appId}/public/data/games`, gameId);
+
+            try {
+                const gameSnap = await getDoc(gameRef);
+
+                if (!gameSnap.exists()) {
+                    showMessage('Gra o podanym ID nie istnieje.');
+                    return;
+                }
+
+                const gameData = gameSnap.data();
+
+                if (gameData.playerXId === userId || gameData.playerOId === userId) {
+                    // Już w tej grze
+                    showMessage(`Już jesteś w grze ${gameId}.`);
+                    startListeningToGame(gameId);
+                    return;
+                }
+
+                if (gameData.playerXId && gameData.playerOId) {
+                    showMessage('Ta gra jest już pełna. Wybierz inną lub stwórz nową.');
+                    return;
+                }
+
+                let updatedGameData = { ...gameData };
+                if (!gameData.playerXId) {
+                    updatedGameData.playerXId = userId;
+                    playerMark = 'X';
+                } else if (!gameData.playerOId) {
+                    updatedGameData.playerOId = userId;
+                    playerMark = 'O';
+                }
+
+                // Aktywuj grę, jeśli obaj gracze są obecni
+                if (updatedGameData.playerXId && updatedGameData.playerOId) {
+                    updatedGameData.gameActive = true;
+                    showMessage('Gra rozpoczęta! Twoja kolej, jeśli jesteś X.');
+                } else {
+                    showMessage('Dołączyłeś do gry. Czekam na drugiego gracza...');
+                }
+
+                updatedGameData.lastUpdated = Date.now(); // Aktualizuj czas ostatniej zmiany
+                await setDoc(gameRef, updatedGameData); // Zapisz zaktualizowany stan
+                startListeningToGame(gameId); // Rozpocznij nasłuchiwanie na zmiany
+                gameIdDisplay.textContent = gameId;
+                yourMarkDisplay.textContent = playerMark || '?'; // Wyświetl przypisany znak
+            } catch (error) {
+                console.error("Błąd dołączania do gry:", error);
+                showMessage('Błąd dołączania do gry: ' + error.message);
+            }
+        }
+
+        /**
+         * Rozpoczyna nasłuchiwanie na zmiany w dokumencie gry w Firestore.
+         * @param {string} gameId - ID gry do nasłuchiwania.
+         */
+        function startListeningToGame(gameId) {
+            if (unsubscribeFromGame) {
+                unsubscribeFromGame(); // Zakończ poprzednie nasłuchiwanie
+            }
+
+            currentGameId = gameId;
+            const gameRef = doc(db, `artifacts/${appId}/public/data/games`, gameId);
+
+            unsubscribeFromGame = onSnapshot(gameRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const gameData = docSnap.data();
+                    board = gameData.board;
+                    currentPlayer = gameData.currentPlayer;
+                    gameActive = gameData.gameActive;
+                    playerXId = gameData.playerXId;
+                    playerOId = gameData.playerOId;
+                    winner = gameData.winner;
+
+                    updateGameUI();
+                    updateStatusBasedOnState();
+                } else {
+                    // Gra została usunięta
+                    showMessage('Gra została zakończona lub usunięta. Stwórz nową grę.');
+                    resetLocalGameState();
+                }
+            }, (error) => {
+                console.error("Błąd nasłuchiwania na grę:", error);
+                showMessage('Błąd synchronizacji gry: ' + error.message);
+            });
+        }
+
+        /**
+         * Aktualizuje UI gry na podstawie aktualnego stanu.
+         */
+        function updateGameUI() {
+            board.forEach((mark, index) => {
+                const cellElement = gameBoard.children[index];
+                if (cellElement) {
+                    cellElement.textContent = mark;
+                    cellElement.classList.remove('x', 'o');
+                    if (mark) {
+                        cellElement.classList.add(mark.toLowerCase());
+                    }
+                }
+            });
+
+            if (playerXId === userId) {
+                playerMark = 'X';
+            } else if (playerOId === userId) {
+                playerMark = 'O';
+            } else {
+                playerMark = '?'; // Gracz nie jest przypisany do X ani O w tej grze
+            }
+            yourMarkDisplay.textContent = playerMark;
+
+            // Pokaż przycisk resetowania tylko gdy gra nie jest aktywna i nie ma zwycięzcy
+            if (!gameActive && winner !== null) {
+                resetButton.style.display = 'block';
+            } else {
+                resetButton.style.display = 'none';
+            }
+        }
+
+        /**
+         * Aktualizuje status gry na podstawie globalnego stanu.
+         */
+        function updateStatusBasedOnState() {
+            if (winner) {
+                updateStatus(`Gracz ${winner} wygrał!`);
+                showMessage('Gra zakończona.');
+                resetButton.style.display = 'block';
+                return;
+            }
+
+            const isDraw = !board.includes('') && !winner;
+            if (isDraw) {
+                updateStatus('Remis!');
+                showMessage('Gra zakończona remisem.');
+                resetButton.style.display = 'block';
+                return;
+            }
+
+            if (!gameActive) {
+                if (playerXId && playerOId) {
+                    // Gra powinna być aktywna, jeśli obaj gracze są obecni, ale nie jest. To stan błędu lub oczekiwanie na pierwszy ruch.
+                    updateStatus('Gra jest gotowa, ale nieaktywna. Czekam na pierwszy ruch.');
+                } else {
+                    updateStatus('Czekam na drugiego gracza...');
+                    showMessage('Aby rozpocząć grę, potrzebny jest drugi gracz. Udostępnij ID gry!');
+                }
+            } else {
+                if (currentPlayer === playerMark) {
+                    updateStatus(`Twoja tura! Jesteś ${playerMark}.`);
+                    showMessage('Wykonaj ruch!');
+                } else if (playerMark === '?') {
+                    updateStatus(`Tura gracza ${currentPlayer}`);
+                    showMessage('Obserwujesz grę.');
+                }
+                else {
+                    updateStatus(`Tura gracza ${currentPlayer} (przeciwnika).`);
+                    showMessage('Czekaj na ruch przeciwnika.');
+                }
+            }
+        }
+
+        /**
+         * Obsługa kliknięcia komórki.
+         * @param {Event} event - Obiekt zdarzenia kliknięcia.
+         */
+        async function handleCellClick(event) {
+            if (!gameActive || currentPlayer !== playerMark || !currentGameId) {
+                // Gra nieaktywna, nie twoja tura, lub nie dołączyłeś do gry
+                if (!gameActive) showMessage('Gra nie jest aktywna.');
+                else if (currentPlayer !== playerMark) showMessage('To nie Twoja tura!');
+                else if (!currentGameId) showMessage('Musisz dołączyć do gry, aby grać.');
+                return;
+            }
+
+            const clickedCell = event.target;
+            const clickedCellIndex = parseInt(clickedCell.dataset.index);
+
+            // Sprawdza, czy komórka jest już zajęta
+            if (board[clickedCellIndex] !== '') {
+                showMessage('Ta komórka jest już zajęta!');
+                return;
+            }
+
+            // Aktualizuj lokalną planszę i UI natychmiast (optymistyczna aktualizacja)
+            board[clickedCellIndex] = currentPlayer;
+            updateGameUI(); // Odśwież UI
+
+            // Przygotuj nową planszę i sprawdź wynik lokalnie przed wysłaniem
+            let newBoard = [...board];
+            let newWinner = null;
+            let newGameActive = true;
+            let newCurrentPlayer = currentPlayer;
+
             let roundWon = false;
             for (let i = 0; i < winningConditions.length; i++) {
                 const winCondition = winningConditions[i];
-                let a = board[winCondition[0]];
-                let b = board[winCondition[1]];
-                let c = board[winCondition[2]];
+                let a = newBoard[winCondition[0]];
+                let b = newBoard[winCondition[1]];
+                let c = newBoard[winCondition[2]];
 
                 if (a === '' || b === '' || c === '') {
-                    continue; // Jeśli jedna z komórek jest pusta, sprawdź następną kombinację
+                    continue;
                 }
                 if (a === b && b === c) {
                     roundWon = true;
-                    break; // Znaleziono wygrywającą kombinację
+                    newWinner = currentPlayer;
+                    newGameActive = false; // Zakończ grę
+                    break;
                 }
             }
 
             if (roundWon) {
-                updateStatus(`Gracz ${currentPlayer} wygrał!`);
-                gameActive = false; // Zakończ grę
-                return;
+                // Zwycięstwo
+            } else {
+                let roundDraw = !newBoard.includes('');
+                if (roundDraw) {
+                    newWinner = 'Remis';
+                    newGameActive = false; // Zakończ grę
+                } else {
+                    newCurrentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+                }
             }
 
-            // Sprawdź remis (czy wszystkie komórki są zajęte)
-            let roundDraw = !board.includes('');
-            if (roundDraw) {
-                updateStatus('Remis!');
-                gameActive = false; // Zakończ grę
-                return;
+            // Aktualizuj Firestore
+            const gameRef = doc(db, `artifacts/${appId}/public/data/games`, currentGameId);
+            try {
+                await setDoc(gameRef, {
+                    board: newBoard,
+                    currentPlayer: newCurrentPlayer,
+                    gameActive: newGameActive,
+                    winner: newWinner,
+                    lastUpdated: Date.now()
+                }, { merge: true }); // Użyj merge, aby nie nadpisywać innych pól
+            } catch (error) {
+                console.error("Błąd aktualizacji gry w Firestore:", error);
+                showMessage('Błąd podczas wykonywania ruchu: ' + error.message);
+                // W przypadku błędu, możesz cofnąć lokalną optymistyczną aktualizację:
+                // board = previousBoardState; updateGameUI();
             }
-
-            // Jeśli nie ma wygranej ani remisu, zmień gracza
-            changePlayer();
         }
 
         /**
-         * Funkcja zmieniająca aktualnego gracza.
+         * Funkcja resetująca grę do początkowego stanu (w Firestorze).
          */
-        function changePlayer() {
-            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-            updateStatus(`Tura gracza ${currentPlayer}`);
+        async function resetGame() {
+            if (!currentGameId || !db) {
+                showMessage('Nie ma aktywnej gry do zresetowania.');
+                return;
+            }
+
+            const gameRef = doc(db, `artifacts/${appId}/public/data/games`, currentGameId);
+            try {
+                // Sprawdź, czy jesteś jednym z graczy w tej grze
+                const gameSnap = await getDoc(gameRef);
+                if (gameSnap.exists()) {
+                    const gameData = gameSnap.data();
+                    if (gameData.playerXId !== userId && gameData.playerOId !== userId) {
+                        showMessage('Nie możesz zresetować gry, do której nie jesteś przypisany jako gracz.');
+                        return;
+                    }
+                }
+
+                await setDoc(gameRef, {
+                    board: ['', '', '', '', '', '', '', '', ''],
+                    currentPlayer: 'X',
+                    gameActive: true, // Aktywuj ponownie po resecie
+                    winner: null,
+                    lastUpdated: Date.now()
+                }, { merge: true });
+                showMessage('Gra została zresetowana!');
+                resetButton.style.display = 'none';
+            } catch (error) {
+                console.error("Błąd resetowania gry:", error);
+                showMessage('Błąd resetowania gry: ' + error.message);
+            }
         }
 
         /**
-         * Funkcja resetująca grę do początkowego stanu.
+         * Resetuje lokalny stan gry, gdy gra zostaje zakończona/usunięta z Firestore.
          */
-        function resetGame() {
-            board = ['', '', '', '', '', '', '', '', '']; // Resetuj planszę
-            currentPlayer = 'X'; // Zaczyna gracz X
-            gameActive = true; // Aktywuj grę
-            initializeGame(); // Ponownie inicjuj UI planszy
+        function resetLocalGameState() {
+            board = ['', '', '', '', '', '', '', '', ''];
+            currentPlayer = 'X';
+            gameActive = false;
+            playerXId = null;
+            playerOId = null;
+            winner = null;
+            currentGameId = null;
+            playerMark = null;
+            gameIdDisplay.textContent = 'Brak';
+            yourMarkDisplay.textContent = '?';
+            updateGameUI();
+            updateStatus('Zacznij, tworząc lub dołączając do gry.');
+            resetButton.style.display = 'none';
         }
 
-        // Dodawanie nasłuchiwania na przycisk resetowania
+        // Dodawanie nasłuchiwania na przyciski
+        createGameButton.addEventListener('click', createNewGame);
+        joinGameButton.addEventListener('click', () => {
+            const gameId = joinGameIdInput.value.trim();
+            if (gameId) {
+                joinGame(gameId);
+            } else {
+                showMessage('Proszę wprowadzić ID gry.');
+            }
+        });
         resetButton.addEventListener('click', resetGame);
 
-        // Inicjalizacja gry po załadowaniu skryptu
-        window.onload = initializeGame;
+        // Inicjalizacja Firebase po załadowaniu okna
+        window.onload = initializeFirebase;
     </script>
 </body>
 </html>
